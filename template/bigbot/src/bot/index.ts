@@ -1,20 +1,23 @@
+import dotenv from "dotenv";
+dotenv.config();
+
 import { DiscordGatewayPayload } from "discordeno";
-import Embeds from "discordeno/embeds";
+// ReferenceError: publishMessage is not defined
+// import Embeds from "discordeno/embeds";
+import amqplib from "amqplib";
 import express from "express";
-import {
-  BOT_ID,
-  BUGS_ERRORS_REPORT_WEBHOOK,
-  DEVELOPMENT,
-  EVENT_HANDLER_AUTHORIZATION,
-  EVENT_HANDLER_PORT,
-  EVENT_HANDLER_URL,
-} from "../configs.js";
+import { BOT_ID, EVENT_HANDLER_URL } from "../configs.js";
 import { bot } from "./bot.js";
 import { updateDevCommands } from "./utils/slash/updateCommands.js";
 import { webhookURLToIDAndToken } from "./utils/webhook.js";
 
+const BUGS_ERRORS_REPORT_WEBHOOK = process.env.BUGS_ERRORS_REPORT_WEBHOOK;
+const EVENT_HANDLER_AUTHORIZATION = process.env.EVENT_HANDLER_AUTHORIZATION as string;
+const EVENT_HANDLER_PORT = process.env.EVENT_HANDLER_PORT as string;
+
 process
   .on("unhandledRejection", (error) => {
+    if (!BUGS_ERRORS_REPORT_WEBHOOK) return;
     const { id, token } = webhookURLToIDAndToken(BUGS_ERRORS_REPORT_WEBHOOK);
     if (!id || !token) return;
 
@@ -28,6 +31,8 @@ process
 
     if (!error) return;
 
+    // ReferenceError: publishMessage is not defined
+    /*
     const embeds = new Embeds()
       .setDescription(["```js", error, "```"].join(`\n`))
       .setTimestamp()
@@ -35,8 +40,10 @@ process
 
     // SEND ERROR TO THE LOG CHANNEL ON THE DEV SERVER
     return bot.helpers.sendWebhookMessage(bot.transformers.snowflake(id), token, { embeds }).catch(console.error);
+    */
   })
   .on("uncaughtException", async (error) => {
+    if (!BUGS_ERRORS_REPORT_WEBHOOK) return;
     const { id, token } = webhookURLToIDAndToken(BUGS_ERRORS_REPORT_WEBHOOK);
     if (!id || !token) return;
 
@@ -50,21 +57,37 @@ process
 
     if (!error) process.exit(1);
 
+    /*
     const embeds = new Embeds()
       .setDescription(["```js", error.stack, "```"].join(`\n`))
       .setTimestamp()
       .setFooter("Unhandled Exception Error Occurred");
-
-    // SEND ERROR TO THE LOG CHANNEL ON THE DEV SERVER
-    await bot.helpers.sendWebhookMessage(bot.transformers.snowflake(id), token, { embeds }).catch(console.error);
+      // SEND ERROR TO THE LOG CHANNEL ON THE DEV SERVER
+      await bot.helpers.sendWebhookMessage(bot.transformers.snowflake(id), token, { embeds }).catch(console.error);
+      */
 
     process.exit(1);
   });
 
-if (DEVELOPMENT) {
+if (process.env.DEVELOPMENT === "true") {
   bot.logger.info(`[DEV MODE] Updating slash commands for dev server.`);
   updateDevCommands(bot);
 }
+
+// Handle events from the gateway
+const handleEvent = async (message: DiscordGatewayPayload, shardId: number) => {
+  // EMITS RAW EVENT
+  bot.events.raw(bot, message, shardId);
+
+  if (message.t && message.t !== "RESUMED") {
+    // When a guild or something isnt in cache this will fetch it before doing anything else
+    if (!["READY", "GUILD_LOADED_DD"].includes(message.t)) {
+      await bot.events.dispatchRequirements(bot, message, shardId);
+    }
+
+    bot.handlers[message.t]?.(bot, message, shardId);
+  }
+};
 
 const app = express();
 
@@ -76,27 +99,7 @@ app.use(
 
 app.use(express.json());
 
-app.post("/", async (req, res) => {
-  handleRequest(req, res);
-});
-
-app.put("/", async (req, res) => {
-  handleRequest(req, res);
-});
-
-app.patch("/", async (req, res) => {
-  handleRequest(req, res);
-});
-
-app.delete("/", async (req, res) => {
-  handleRequest(req, res);
-});
-
-app.get("/", async (req, res) => {
-  handleRequest(req, res);
-});
-
-async function handleRequest(req: express.Request, res: express.Response) {
+app.all("/", async (req, res) => {
   try {
     if (!EVENT_HANDLER_AUTHORIZATION || EVENT_HANDLER_AUTHORIZATION !== req.headers.authorization) {
       return res.status(401).json({ error: "Invalid authorization key." });
@@ -107,25 +110,80 @@ async function handleRequest(req: express.Request, res: express.Response) {
       shardId: number;
     };
 
-    // EMITS RAW EVENT
-    bot.events.raw(bot, json.message, json.shardId);
-
-    if (json.message.t && json.message.t !== "RESUMED") {
-      // When a guild or something isnt in cache this will fetch it before doing anything else
-      if (!["READY", "GUILD_LOADED_DD"].includes(json.message.t)) {
-        await bot.events.dispatchRequirements(bot, json.message, json.shardId);
-      }
-
-      bot.handlers[json.message.t]?.(bot, json.message, json.shardId);
-    }
+    await handleEvent(json.message, json.shardId);
 
     res.status(200).json({ success: true });
   } catch (error: any) {
     bot.logger.error(error);
     res.status(error.code).json(error);
   }
-}
+});
 
 app.listen(EVENT_HANDLER_PORT, () => {
   console.log(`Bot is listening at ${EVENT_HANDLER_URL};`);
 });
+
+const connectRabbitmq = async () => {
+  let connection: amqplib.Connection | undefined = undefined;
+
+  try {
+    connection = await amqplib.connect(
+      `amqp://${process.env.MESSAGEQUEUE_USERNAME}:${process.env.MESSAGEQUEUE_PASSWORD}@${process.env.MESSAGEQUEUE_URL}`,
+    );
+  } catch (error) {
+    console.error(error);
+    setTimeout(connectRabbitmq, 1000);
+  }
+
+  if (!connection) return;
+  connection.on("error", (err) => {
+    console.error(err);
+    setTimeout(connectRabbitmq, 1000);
+  });
+
+  connection.on("close", () => {
+    setTimeout(connectRabbitmq, 1000);
+  });
+
+  try {
+    const channel = await connection.createChannel();
+
+    await channel.assertExchange(
+      "gatewayMessage",
+      "x-message-deduplication",
+      {
+        durable: true,
+        arguments: {
+          "x-cache-size": 1000,
+          "x-cache-ttl": 500,
+        },
+      },
+    );
+
+    await channel.assertQueue("gatewayMessageQueue");
+    await channel.bindQueue("gatewayMessageQueue", "gatewayMessage", "");
+    await channel.consume(
+      "gatewayMessageQueue",
+      async (msg) => {
+        if (!msg) return;
+        const json = JSON.parse(msg.content.toString()) as {
+          message: DiscordGatewayPayload;
+          shardId: number;
+        };
+
+        await handleEvent(json.message, json.shardId);
+
+        await channel.ack(msg);
+      },
+      {
+        noAck: false,
+      },
+    );
+  } catch (error) {
+    console.error(error);
+  }
+};
+
+if (process.env.MESSAGEQUEUE_ENABLE === "true") {
+  connectRabbitmq();
+}

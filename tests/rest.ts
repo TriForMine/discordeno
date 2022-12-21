@@ -4,7 +4,7 @@ import { dotenv } from "./deps.ts";
 
 dotenv({ export: true, path: `${Deno.cwd()}/.env` });
 
-const token = Deno.env.get("DISCORD_TOKEN");
+const token = Deno.env.get("GAMER_TOKEN");
 if (!token) throw new Error("Token was not provided.");
 
 const REST_AUTHORIZATION_KEY = Deno.env.get("PROXY_REST_SECRET");
@@ -16,13 +16,12 @@ const rest = createRestManager({
   token,
   secretKey: REST_AUTHORIZATION_KEY,
   customUrl: PROXY_REST_URL,
-  // debug: console.log,
 });
 
 // START LISTENING TO THE URL(localhost)
 const server = Deno.listen({ port: REST_PORT });
 console.log(
-  `HTTP webserver running.  Access it at: ${PROXY_REST_URL}`,
+  `Rest Proxy running. Access it at: ${PROXY_REST_URL}`,
 );
 
 // Connections to the server will be yielded up as an async iterable.

@@ -20,6 +20,7 @@ export enum PremiumTypes {
   None,
   NitroClassic,
   Nitro,
+  NitroBasic,
 }
 
 /** https://discord.com/developers/docs/resources/user#user-object-user-flags */
@@ -96,11 +97,19 @@ export enum MessageComponentTypes {
   /** A container for other components */
   ActionRow = 1,
   /** A button object */
-  Button = 2,
+  Button,
   /** A select menu for picking from choices */
-  SelectMenu = 3,
+  SelectMenu,
   /** A text input object */
-  InputText = 4,
+  InputText,
+  /** Select menu for users */
+  SelectMenuUsers,
+  /** Select menu for roles */
+  SelectMenuRoles,
+  /** Select menu for users and roles */
+  SelectMenuUsersAndRoles,
+  /** Select menu for channels */
+  SelectMenuChannels,
 }
 
 export enum TextStyles {
@@ -205,6 +214,8 @@ export enum GuildFeatures {
   Partnered = "PARTNERED",
   /** Guild can enable welcome screen, Membership Screening, stage channels and discovery, and receives community updates */
   Community = "COMMUNITY",
+  /** Guild has been set as a support server on the App Directory */
+  DeveloperSupportServer = "DEVELOPER_SUPPORT_SERVER",
   /** Guild has access to create news channels */
   News = "NEWS",
   /** Guild is able to be discovered in the directory */
@@ -295,7 +306,7 @@ export enum ChannelTypes {
   GuildAnnouncement,
   /** A temporary sub-channel within a GUILD_ANNOUNCEMENT channel */
   AnnouncementThread = 10,
-  /** A temporary sub-channel within a GUILD_TEXT channel */
+  /** A temporary sub-channel within a GUILD_TEXT or GUILD_FORUM channel */
   PublicThread,
   /** A temporary sub-channel within a GUILD_TEXT channel that is only viewable by those invited and those with the MANAGE_THREADS permission */
   PrivateThread,
@@ -889,6 +900,7 @@ export enum JsonErrorCodes {
   /** Invalid form body (returned for both `application/json` and `multipart/form-data` bodies), or invalid `Content-Type` provided */
   InvalidFormBodyOrContentTypeProvided,
   AnInviteWasAcceptedToAGuildTheApplicationsBotIsNotIn,
+  InvalidActivityAction = 50039,
   InvalidApiVersionProvided = 50041,
   FileUploadedExceedsTheMaximumSize = 50045,
   InvalidFileUploaded,
@@ -1235,6 +1247,13 @@ export enum InteractionResponseTypes {
   ApplicationCommandAutocompleteResult = 8,
   /** For Command or Component interactions, send a Modal response */
   Modal = 9,
+}
+
+export enum SortOrderTypes {
+  /** Sort forum posts by activity */
+  LatestActivity,
+  /** Sort forum posts by creation time (from most recent to oldest) */
+  CreationDate,
 }
 
 export enum Errors {

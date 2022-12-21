@@ -20,6 +20,7 @@
     "dnt.ts",
     "mod.ts",
     "debug.ts",
+    "debug.rest.ts",
     "bot.ts"
   ],
   "editor.defaultFormatter": "denoland.vscode-deno",
@@ -27,5 +28,13 @@
   "editor.codeActionsOnSave": {
     "source.organizeImports": true,
     "source.fixAll": true
-  }
+  },
+  "deno.inlayHints.enumMemberValues.enabled": true,
+  "deno.inlayHints.functionLikeReturnTypes.enabled": true,
+  "deno.inlayHints.parameterNames.enabled": "all",
+  "deno.inlayHints.parameterNames.suppressWhenArgumentMatchesName": false,
+  "deno.inlayHints.parameterTypes.enabled": true,
+  "deno.inlayHints.propertyDeclarationTypes.enabled": true,
+  "deno.inlayHints.variableTypes.enabled": true,
+  "deno.inlayHints.variableTypes.suppressWhenTypeMatchesName": false
 }
